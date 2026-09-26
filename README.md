@@ -193,5 +193,5 @@ test_app.py::test_api_endpoints PASSED
 
 Proyek ini dikembangkan dan dirancang oleh:
 
-**Dibuat oleh Adriansyah Gidding**  
+**Dibuat oleh Adrian Syah Abidin**  
 *Full Stack Developer & DevSecOps Enthusiast*
