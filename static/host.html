@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TabSign Host Control Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            overflow: auto;
+            background: #0f172a;
+            padding: 24px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: #38bdf8;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        p.subtitle {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .card {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .card h2 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #f1f5f9;
+        }
+        .qr-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+        }
+        .qr-img {
+            width: 200px;
+            height: 200px;
+            background: white;
+            padding: 8px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        .url-box {
+            background: #0b0f19;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 14px;
+            color: #38bdf8;
+            word-break: break-all;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 6px;
+        }
+        select, input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            background: #0b0f19;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            color: #f8fafc;
+            font-size: 14px;
+        }
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 14px;
+        }
+        .stat-val {
+            font-weight: 600;
+            color: #38bdf8;
+        }
+        .btn-refresh {
+            margin-top: 8px;
+            width: 100%;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span>📱 ⇄ 🖥️</span> TabSign Windows Host</h1>
+        <p class="subtitle">Screen Mirroring & S-Pen Signature Input untuk Samsung Galaxy Tab S7</p>
+
+        <div class="grid">
+            <!-- Left Card: Scan & Connect -->
+            <div class="card">
+                <h2>Scan dari Samsung Tablet S7</h2>
+                <div class="qr-wrapper">
+                    <img id="qr-code" class="qr-img" src="/api/qrcode" alt="QR Code">
+                    <div id="tablet-url" class="url-box">Memuat URL...</div>
+                </div>
+                <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 8px;">
+                    Buka kamera Samsung Tab S7 Anda, scan QR Code di atas, dan buka di browser.
+                </p>
+            </div>
+
+            <!-- Right Card: Controls & Settings -->
+            <div class="card">
+                <h2>Pengaturan Streaming & Target</h2>
+                
+                <div class="form-group">
+                    <label for="select-window">Target Layar / Jendela:</label>
+                    <select id="select-window">
+                        <option value="0">🖥️ Seluruh Layar (Primary Monitor)</option>
+                    </select>
+                    <button id="btn-refresh-wins" class="btn btn-secondary btn-refresh">🔄 Segarkan Daftar Jendela</button>
+                </div>
+
+                <div class="form-group">
+                    <label for="fps-range">Kecepatan Frame: <span id="fps-val" class="stat-val">30 FPS</span></label>
+                    <input type="range" id="fps-range" min="15" max="60" step="5" value="30">
+                </div>
+
+                <div class="form-group">
+                    <label for="quality-range">Kualitas Gambar: <span id="quality-val" class="stat-val">75%</span></label>
+                    <input type="range" id="quality-range" min="50" max="95" step="5" value="75">
+                </div>
+
+                <div class="card" style="margin-top: 16px; background: rgba(0,0,0,0.3);">
+                    <div class="stat-item">
+                        <span>Status Klien Tablet:</span>
+                        <span id="clients-count" class="stat-val">0 Terhubung</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Mode Tangkap Layar:</span>
+                        <span id="current-mode" class="stat-val">Full Screen</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                document.getElementById('tablet-url').textContent = data.url;
+                document.getElementById('clients-count').textContent = `${data.connected_clients} Terhubung`;
+                document.getElementById('current-mode').textContent = data.mode === 'window' ? 'Jendela Khusus' : 'Seluruh Layar';
+            } catch (err) {}
+        }
+
+        async function loadWindows() {
+            try {
+                const res = await fetch('/api/windows');
+                const wins = await res.json();
+                const sel = document.getElementById('select-window');
+                const currentVal = sel.value;
+                sel.innerHTML = '<option value="0">🖥️ Seluruh Layar (Primary Monitor)</option>';
+                wins.forEach(w => {
+                    const opt = document.createElement('option');
+                    opt.value = w.hwnd;
+                    opt.textContent = `🪟 ${w.title.substring(0, 45)}`;
+                    sel.appendChild(opt);
+                });
+                sel.value = currentVal;
+            } catch (err) {}
+        }
+
+        document.getElementById('select-window').addEventListener('change', async (e) => {
+            const hwnd = parseInt(e.target.value);
+            await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ hwnd: hwnd })
+            });
+            loadStatus();
+        });
+
+        document.getElementById('btn-refresh-wins').addEventListener('click', loadWindows);
+
+        document.getElementById('fps-range').addEventListener('input', async (e) => {
+            const val = parseInt(e.target.value);
+            document.getElementById('fps-val').textContent = `${val} FPS`;
+            await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fps: val })
+            });
+        });
+
+        document.getElementById('quality-range').addEventListener('input', async (e) => {
+            const val = parseInt(e.target.value);
+            document.getElementById('quality-val').textContent = `${val}%`;
+            await fetch('/api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ quality: val })
+            });
+        });
+
+        loadStatus();
+        loadWindows();
+        setInterval(loadStatus, 2000);
+    </script>
+</body>
+</html>

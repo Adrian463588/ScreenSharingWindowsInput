@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TabSign - Screen Mirror & Signature Input</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Canvas Container -->
+        <div id="viewport">
+            <canvas id="screen-canvas"></canvas>
+            <canvas id="ink-canvas"></canvas>
+            <div id="selection-box" class="hidden"></div>
+        </div>
+
+        <!-- Floating Control Toolbar -->
+        <div id="toolbar" class="toolbar-top">
+            <div class="toolbar-drag-handle" id="drag-handle" title="Tahan untuk geser toolbar">⠿</div>
+            
+            <div class="tool-group">
+                <span id="conn-badge" class="badge badge-disconnected">● Menghubungkan...</span>
+                <span id="fps-badge" class="badge badge-fps">0 FPS</span>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="tool-group">
+                <button id="btn-mode-pen" class="btn btn-active" title="Mode Tanda Tangan (S-Pen / Sentuh)">
+                    <span class="icon">✍️</span> <span class="label">Tanda Tangan</span>
+                </button>
+                <button id="btn-mode-click" class="btn" title="Mode Klik & Buka Menu / Taskbar">
+                    <span class="icon">👆</span> <span class="label">Klik / Menu</span>
+                </button>
+                <button id="btn-mode-nav" class="btn" title="Mode Scroll Halaman Web">
+                    <span class="icon">✋</span> <span class="label">Scroll</span>
+                </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="tool-group">
+                <button id="btn-zoom-box" class="btn" title="Pilih Kotak Tanda Tangan (Zoom In)">
+                    <span class="icon">🔍</span> <span class="label">Fokus Kotak</span>
+                </button>
+                <button id="btn-zoom-reset" class="btn" title="Reset Tampilan Penuh">
+                    <span class="icon">🔄</span> <span class="label">Reset</span>
+                </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="tool-group">
+                <button id="btn-clear-sig" class="btn btn-warning" title="Hapus / Reset Tanda Tangan">
+                    <span class="icon">🧹</span> <span class="label">Hapus</span>
+                </button>
+                <button id="btn-undo" class="btn btn-secondary" title="Undo Goresan (Ctrl+Z di PC)">
+                    <span class="icon">↩️</span> <span class="label">Undo</span>
+                </button>
+                <button id="btn-fullscreen" class="btn btn-secondary" title="Layar Penuh">
+                    <span class="icon">⛶</span> <span class="label">Layar Penuh</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

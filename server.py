@@ -1,0 +1,233 @@
+import asyncio
+import io
+import json
+import os
+import socket
+from typing import Set
+import uvicorn
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Response
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+import qrcode
+import psutil
+
+from capture import ScreenCapturer, attach_to_default_desktop
+from injector import InputInjector
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    worker_task = asyncio.create_task(stream_worker())
+    yield
+    worker_task.cancel()
+
+app = FastAPI(title="TabSign Server", lifespan=lifespan)
+
+# Initialize modules
+attach_to_default_desktop()
+capturer = ScreenCapturer()
+injector = InputInjector()
+
+# Connected tablet clients
+connected_clients: Set[WebSocket] = set()
+
+# Streaming configuration
+target_fps = 30
+server_port = 8000
+
+def get_best_local_ip() -> str:
+    """Find the best local Wi-Fi or Ethernet IPv4 address"""
+    candidates = []
+    for iface, addrs in psutil.net_if_addrs().items():
+        for addr in addrs:
+            if addr.family == socket.AF_INET and not addr.address.startswith("127."):
+                ip = addr.address
+                # Priority: Wi-Fi, then private subnets (192.168, 10., 172.)
+                if not ip.startswith("169.254."):
+                    is_wifi = "wi-fi" in iface.lower() or "wlan" in iface.lower()
+                    candidates.append((10 if is_wifi else 5, ip))
+    
+    if candidates:
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        return candidates[0][1]
+    
+    # Fallback
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+local_ip = get_best_local_ip()
+server_url = f"http://{local_ip}:{server_port}"
+
+# Static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/")
+async def get_index():
+    return FileResponse("static/index.html")
+
+@app.get("/host")
+async def get_host_page():
+    return FileResponse("static/host.html")
+
+@app.get("/api/status")
+async def get_status():
+    return {
+        "ip": local_ip,
+        "port": server_port,
+        "url": server_url,
+        "mode": capturer.mode,
+        "target_hwnd": capturer.target_hwnd,
+        "quality": capturer.quality,
+        "fps": target_fps,
+        "connected_clients": len(connected_clients)
+    }
+
+@app.get("/api/windows")
+async def get_windows():
+    return capturer.get_visible_windows()
+
+@app.post("/api/config")
+async def update_config(config: dict):
+    global target_fps
+    if "hwnd" in config:
+        hwnd = config["hwnd"]
+        capturer.set_target_window(hwnd if hwnd != 0 else None)
+    if "quality" in config:
+        capturer.quality = max(30, min(95, int(config["quality"])))
+    if "fps" in config:
+        target_fps = max(10, min(60, int(config["fps"])))
+    return {"status": "ok", "mode": capturer.mode, "fps": target_fps, "quality": capturer.quality}
+
+@app.get("/api/qrcode")
+async def get_qrcode():
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=8,
+        border=2,
+    )
+    qr.add_data(server_url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+# Background Screen Streaming Worker
+async def stream_worker():
+    global target_fps
+    while True:
+        try:
+            if connected_clients:
+                frame_interval = 1.0 / target_fps
+                t0 = asyncio.get_event_loop().time()
+                
+                # Capture frame in thread to avoid blocking asyncio loop
+                jpeg_bytes, current_rect = await asyncio.to_thread(capturer.grab_jpeg)
+                
+                # Broadcast binary frame to all connected tablet clients
+                disconnected = set()
+                for client in connected_clients:
+                    try:
+                        await client.send_bytes(jpeg_bytes)
+                    except Exception:
+                        disconnected.add(client)
+                        
+                for dc in disconnected:
+                    connected_clients.discard(dc)
+                
+                elapsed = asyncio.get_event_loop().time() - t0
+                sleep_time = max(0.001, frame_interval - elapsed)
+                await asyncio.sleep(sleep_time)
+            else:
+                await asyncio.sleep(0.15)
+        except Exception as e:
+            await asyncio.sleep(0.1)
+
+@app.websocket("/ws/client")
+async def websocket_client_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    connected_clients.add(websocket)
+    try:
+        # Send initial capture rect to client
+        rect = capturer.get_capture_rect()
+        await websocket.send_text(json.dumps({"type": "rect", "rect": rect}))
+        
+        while True:
+            text = await websocket.receive_text()
+            data = json.loads(text)
+            event_type = data.get("type")
+            
+            rect = capturer.get_capture_rect()
+            
+            if event_type == "click":
+                u = float(data.get("x", 0.5))
+                v = float(data.get("y", 0.5))
+                button = data.get("button", "left")
+                screen_x, screen_y = injector.to_screen_coords(u, v, rect)
+                injector.click(screen_x, screen_y, button)
+                
+            elif event_type == "double_click":
+                u = float(data.get("x", 0.5))
+                v = float(data.get("y", 0.5))
+                screen_x, screen_y = injector.to_screen_coords(u, v, rect)
+                injector.double_click(screen_x, screen_y)
+                
+            elif event_type in ["down", "drag", "move", "up"]:
+                u = float(data.get("x", 0.5))
+                v = float(data.get("y", 0.5))
+                button = data.get("button", "left")
+                screen_x, screen_y = injector.to_screen_coords(u, v, rect)
+                
+                if event_type == "down":
+                    injector.down(screen_x, screen_y, button)
+                elif event_type in ["drag", "move"]:
+                    injector.drag(screen_x, screen_y)
+                elif event_type == "up":
+                    injector.up(screen_x, screen_y, button)
+                    
+            elif event_type == "scroll":
+                u = float(data.get("x", 0.5))
+                v = float(data.get("y", 0.5))
+                delta = int(data.get("delta", 0))
+                screen_x, screen_y = injector.to_screen_coords(u, v, rect)
+                injector.scroll(screen_x, screen_y, delta)
+                
+            elif event_type == "undo":
+                injector.send_undo()
+                
+            elif event_type == "esc":
+                injector.send_escape()
+                
+    except WebSocketDisconnect:
+        connected_clients.discard(websocket)
+    except Exception as e:
+        connected_clients.discard(websocket)
+
+def print_banner():
+    print("=" * 60)
+    print("  📱 TabSign - Screen Mirroring & S-Pen Signature Input")
+    print("  Host: Windows PC  ⇄  Client: Samsung Galaxy Tab S7")
+    print("=" * 60)
+    print(f"\n[1] Buka di Samsung Tablet S7:")
+    print(f"    --> {server_url} <--\n")
+    print(f"[2] Dashboard Kontrol Windows Host:")
+    print(f"    --> http://localhost:{server_port}/host <--\n")
+    print("[3] Scan QR Code di bawah menggunakan Kamera Samsung Tablet S7:\n")
+    
+    qr = qrcode.QRCode()
+    qr.add_data(server_url)
+    qr.print_ascii(invert=True)
+    print("=" * 60)
+
+if __name__ == "__main__":
+    print_banner()
+    uvicorn.run(app, host="0.0.0.0", port=server_port, log_level="warning")
