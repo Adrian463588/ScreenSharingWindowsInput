@@ -197,6 +197,35 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ADB Wireless / Wi-Fi & Hotspot Connection -->
+            <div style="margin-top: 16px; padding: 14px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span style="font-weight: 600; font-size: 14px; color: #38bdf8;">📶 Koneksi Nirkabel (ADB Wireless / Hotspot HP)</span>
+                    <span id="gateway-hint" style="font-size: 12px; color: #94a3b8;">Hotspot default: 192.168.43.1</span>
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 10px; align-items: flex-end;">
+                    <div style="flex: 2;">
+                        <label for="adb-wireless-ip" style="font-size: 12px; margin-bottom: 4px; display: block; color: #94a3b8;">Alamat IP Android:</label>
+                        <input type="text" id="adb-wireless-ip" placeholder="192.168.0.2 atau 192.168.43.1" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 13px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label for="adb-wireless-port" style="font-size: 12px; margin-bottom: 4px; display: block; color: #94a3b8;">Port (5555):</label>
+                        <input type="number" id="adb-wireless-port" value="5555" style="width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 13px;">
+                    </div>
+                    <button id="btn-adb-connect" class="btn btn-primary" style="padding: 8px 14px; font-size: 13px; height: 37px;">🔗 Sambungkan</button>
+                    <button id="btn-adb-disconnect" class="btn btn-secondary" style="padding: 8px 14px; font-size: 13px; height: 37px;">🔌 Putus</button>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+                    <button id="btn-use-hotspot-ip" class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;">💡 Pasang IP Hotspot (192.168.43.1)</button>
+                    <button id="btn-enable-tcpip" class="btn btn-secondary" style="font-size: 11px; padding: 4px 8px;">🔄 Aktifkan Mode Wi-Fi dari USB (adb tcpip 5555)</button>
+                </div>
+                <p style="font-size: 11px; color: #64748b; margin: 0; line-height: 1.4;">
+                    • <b>Wi-Fi Sama:</b> Cek IP di HP (Pengaturan ➔ Tentang Ponsel ➔ Status ➔ Alamat IP).<br>
+                    • <b>Hotspot HP:</b> Sambungkan Wi-Fi PC ke hotspot HP, masukkan IP gateway (umumnya <code>192.168.43.1</code>).<br>
+                    • <b>Tips:</b> Jika perangkat terhubung via kabel USB, klik tombol <i>"Aktifkan Mode Wi-Fi dari USB"</i> lalu cabut kabel.
+                </p>
+            </div>
         </div>
     </div>
 
@@ -321,6 +350,103 @@
             loadAndroidStatus();
         });
 
+        let detectedGateway = null;
+
+        async function loadGatewayInfo() {
+            try {
+                const res = await fetch('/api/android/adb/gateway');
+                const data = await res.json();
+                detectedGateway = data.gateway || data.hotspot_default || '192.168.43.1';
+                const hintEl = document.getElementById('gateway-hint');
+                if (hintEl) {
+                    if (data.gateway) {
+                        hintEl.textContent = `Gateway Wi-Fi: ${data.gateway}`;
+                    } else {
+                        hintEl.textContent = `Hotspot default: ${data.hotspot_default}`;
+                    }
+                }
+            } catch (err) {}
+        }
+
+        document.getElementById('btn-use-hotspot-ip').addEventListener('click', () => {
+            document.getElementById('adb-wireless-ip').value = detectedGateway || '192.168.43.1';
+        });
+
+        document.getElementById('btn-adb-connect').addEventListener('click', async () => {
+            const ip = document.getElementById('adb-wireless-ip').value.trim();
+            const port = parseInt(document.getElementById('adb-wireless-port').value.trim()) || 5555;
+            if (!ip) {
+                alert('Silakan masukkan alamat IP Android terlebih dahulu.');
+                return;
+            }
+            const btn = document.getElementById('btn-adb-connect');
+            btn.textContent = '⏳ Menyambungkan...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/android/adb/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ip: ip, port: port })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    alert(`Berhasil terhubung ke ${data.target}!\n${data.message}`);
+                } else {
+                    alert(`Gagal terhubung:\n${data.message}`);
+                }
+            } catch (err) {
+                alert('Galat: ' + err);
+            } finally {
+                btn.textContent = '🔗 Sambungkan';
+                btn.disabled = false;
+                loadAndroidStatus();
+            }
+        });
+
+        document.getElementById('btn-adb-disconnect').addEventListener('click', async () => {
+            const ip = document.getElementById('adb-wireless-ip').value.trim();
+            const port = parseInt(document.getElementById('adb-wireless-port').value.trim()) || 5555;
+            const target = ip ? `${ip}:${port}` : (document.getElementById('select-device').value || '');
+            if (!target) {
+                alert('Tentukan IP atau pilih perangkat yang ingin diputus.');
+                return;
+            }
+            const res = await fetch('/api/android/adb/disconnect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target: target })
+            });
+            const data = await res.json();
+            alert(data.message || 'Sesi diputuskan.');
+            loadAndroidStatus();
+        });
+
+        document.getElementById('btn-enable-tcpip').addEventListener('click', async () => {
+            const selDevice = document.getElementById('select-device').value;
+            const btn = document.getElementById('btn-enable-tcpip');
+            btn.textContent = '⏳ Mengaktifkan...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/android/adb/tcpip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ port: 5555, serial: selDevice || null })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    alert(`Port 5555 siap! Anda dapat mencabut kabel USB dan menyambungkan secara nirkabel.\n${data.message}`);
+                } else {
+                    alert(`Gagal mengaktifkan TCP/IP: ${data.message}`);
+                }
+            } catch (err) {
+                alert('Galat: ' + err);
+            } finally {
+                btn.textContent = '🔄 Aktifkan Mode Wi-Fi dari USB (adb tcpip 5555)';
+                btn.disabled = false;
+                loadAndroidStatus();
+            }
+        });
+
         document.getElementById('select-window').addEventListener('change', async (e) => {
             const hwnd = parseInt(e.target.value);
             await fetch('/api/config', {
@@ -356,6 +482,7 @@
         loadStatus();
         loadWindows();
         loadAndroidStatus();
+        loadGatewayInfo();
         setInterval(loadStatus, 2000);
         setInterval(loadAndroidStatus, 3000);
     </script>

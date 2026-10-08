@@ -161,6 +161,36 @@ async def stop_android_scrcpy():
     stopped = scrcpy_manager.stop_scrcpy()
     return {"status": "ok", "stopped": stopped}
 
+@app.post("/api/android/adb/connect")
+async def adb_connect(payload: dict):
+    ip = payload.get("ip", "")
+    port = int(payload.get("port", 5555))
+    if not ip:
+        return {"status": "error", "message": "Alamat IP tidak boleh kosong"}
+    res = await asyncio.to_thread(scrcpy_manager.connect_adb_wireless, ip=ip, port=port)
+    return res
+
+@app.post("/api/android/adb/disconnect")
+async def adb_disconnect(payload: dict):
+    target = payload.get("target", "")
+    if not target:
+        return {"status": "error", "message": "Target tidak boleh kosong"}
+    res = await asyncio.to_thread(scrcpy_manager.disconnect_adb_wireless, target=target)
+    return res
+
+@app.post("/api/android/adb/tcpip")
+async def adb_enable_tcpip(payload: Optional[dict] = None):
+    payload = payload or {}
+    port = int(payload.get("port", 5555))
+    serial = payload.get("serial")
+    res = await asyncio.to_thread(scrcpy_manager.enable_adb_tcpip, port=port, serial=serial)
+    return res
+
+@app.get("/api/android/adb/gateway")
+async def get_adb_gateway():
+    gw = await asyncio.to_thread(scrcpy_manager.get_wifi_gateway_ip)
+    return {"gateway": gw, "hotspot_default": "192.168.43.1"}
+
 # Background Screen Streaming Worker
 async def stream_worker():
     global target_fps

@@ -26,10 +26,25 @@ def find_adb() -> Optional[str]:
     adb_path = shutil.which("adb")
     if adb_path:
         return adb_path
-    local_adb = BIN_DIR / "adb.exe"
-    if local_adb.exists():
-        return str(local_adb)
+    if BIN_DIR.exists():
+        direct = BIN_DIR / "adb.exe"
+        if direct.exists():
+            return str(direct)
+        for child in BIN_DIR.rglob("adb.exe"):
+            return str(child)
     return None
+
+
+def ensure_adb() -> str:
+    """Ensure adb executable is available, downloading scrcpy bundle if missing."""
+    adb_bin = find_adb()
+    if adb_bin:
+        return adb_bin
+    ensure_scrcpy()
+    adb_bin = find_adb()
+    if not adb_bin:
+        raise FileNotFoundError("adb executable could not be found or downloaded")
+    return adb_bin
 
 
 def find_scrcpy() -> Optional[str]:
@@ -223,4 +238,137 @@ def get_scrcpy_status() -> Dict[str, Any]:
         "active_serial": _active_serial if running else None,
         "pid": _active_process.pid if running and _active_process else None,
         "devices": get_adb_devices(),
+        "wifi_gateway": get_wifi_gateway_ip(),
     }
+
+
+def normalize_adb_target(ip: str, port: int = 5555) -> str:
+    """Normalize IP and port string for adb wireless connection."""
+    ip = ip.strip()
+    if not ip:
+        raise ValueError("Alamat IP tidak boleh kosong")
+    if ":" in ip:
+        host, p_str = ip.rsplit(":", 1)
+        try:
+            p = int(p_str)
+            return f"{host}:{p}"
+        except ValueError:
+            return f"{ip}:{port}"
+    return f"{ip}:{port}"
+
+
+def connect_adb_wireless(ip: str, port: int = 5555) -> Dict[str, Any]:
+    """Connect to Android device via ADB Wireless (LAN Wi-Fi or Phone Hotspot)."""
+    target = normalize_adb_target(ip, port)
+    adb_bin = ensure_adb()
+
+    try:
+        res = subprocess.run(
+            [adb_bin, "connect", target],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+        out = (res.stdout + " " + res.stderr).strip()
+        lower = out.lower()
+        success = "connected" in lower and "cannot" not in lower and "failed" not in lower
+        return {
+            "status": "ok" if success else "error",
+            "target": target,
+            "message": out,
+            "devices": get_adb_devices(),
+        }
+    except Exception as exc:
+        return {
+            "status": "error",
+            "target": target,
+            "message": str(exc),
+            "devices": get_adb_devices(),
+        }
+
+
+def disconnect_adb_wireless(target: str) -> Dict[str, Any]:
+    """Disconnect ADB wireless session."""
+    target = target.strip()
+    if not target:
+        raise ValueError("Target perangkat tidak boleh kosong")
+    adb_bin = find_adb()
+    if not adb_bin:
+        return {"status": "error", "message": "ADB tidak ditemukan", "devices": []}
+
+    try:
+        res = subprocess.run(
+            [adb_bin, "disconnect", target],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        out = (res.stdout + " " + res.stderr).strip()
+        return {
+            "status": "ok",
+            "target": target,
+            "message": out,
+            "devices": get_adb_devices(),
+        }
+    except Exception as exc:
+        return {
+            "status": "error",
+            "target": target,
+            "message": str(exc),
+            "devices": get_adb_devices(),
+        }
+
+
+def enable_adb_tcpip(port: int = 5555, serial: Optional[str] = None) -> Dict[str, Any]:
+    """Enable ADB over TCP/IP mode on connected USB device."""
+    adb_bin = ensure_adb()
+    cmd = [adb_bin]
+    if serial:
+        cmd.extend(["-s", serial])
+    cmd.extend(["tcpip", str(port)])
+
+    try:
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=8, check=False)
+        out = (res.stdout + " " + res.stderr).strip()
+        success = res.returncode == 0 or "restarting" in out.lower()
+        return {
+            "status": "ok" if success else "error",
+            "port": port,
+            "serial": serial,
+            "message": out or f"Port TCP/IP {port} diaktifkan.",
+            "devices": get_adb_devices(),
+        }
+    except Exception as exc:
+        return {
+            "status": "error",
+            "port": port,
+            "message": str(exc),
+            "devices": get_adb_devices(),
+        }
+
+
+def get_wifi_gateway_ip() -> Optional[str]:
+    """Detect default gateway IP for active Wi-Fi or Phone Hotspot adapter."""
+    try:
+        res = subprocess.run(
+            ["ipconfig"], capture_output=True, text=True, timeout=4, check=False
+        )
+        in_wifi = False
+        for line in res.stdout.splitlines():
+            lower = line.lower()
+            if "wireless" in lower or "wi-fi" in lower or "wlan" in lower:
+                in_wifi = True
+            elif "adapter" in lower:
+                in_wifi = False
+
+            if in_wifi and "default gateway" in lower:
+                parts = line.split(":")
+                if len(parts) > 1:
+                    gw = parts[1].strip()
+                    if gw and not gw.startswith("fe80") and "." in gw:
+                        return gw
+    except Exception:
+        pass
+    return None

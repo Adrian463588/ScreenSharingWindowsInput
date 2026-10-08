@@ -1,6 +1,6 @@
 # ScreenSharingWindowsInput (TabSign)
 
-[![Version](https://img.shields.io/badge/Version-v1.2.0-brightgreen.svg)](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.2.0)
+[![Version](https://img.shields.io/badge/Version-v1.3.0-brightgreen.svg)](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.3.0)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Framework-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![WebSockets](https://img.shields.io/badge/Streaming-WebSockets%20Binary-yellow.svg)](https://websockets.readthedocs.io/)
@@ -12,7 +12,7 @@ Aplikasi *bidirectional screen sharing* dan *input mirroring* berlatensi sangat 
 
 Dirancang khusus untuk dua mode utama:
 1. **Windows ➔ Tablet:** Menandatangani dokumen web (DocuSign, Privy, Adobe Sign, form web, PDF) langsung menggunakan stylus S-Pen pada tablet.
-2. **Android ➔ Windows:** Menampilkan layar HP/Tablet Android secara langsung di Windows dengan kontrol mouse & keyboard latensi rendah via engine `scrcpy` otomatis.
+2. **Android ➔ Windows:** Menampilkan layar HP/Tablet Android secara langsung di Windows dengan kontrol mouse & keyboard latensi rendah via engine `scrcpy` (Kabel USB, Wi-Fi LAN, maupun Hotspot HP) dengan instalasi otomatis.
 
 ---
 
@@ -49,10 +49,11 @@ Saat membuka dokumen resmi yang membutuhkan tanda tangan digital di peramban PC 
    * Dashboard kontrol lokal di PC (`http://localhost:8000/host`) untuk memilih target jendela (misal: Google Chrome), mengatur FPS (15–60 FPS), dan mengatur kualitas kompresi JPEG.
 8. **Injeksi Input Tingkat Kernel Windows:**
    * Menggunakan Win32 API `SendInput` resmi dengan koordinat absolut ternormalisasi ($0 - 65535$) dan pengikatan stasiun desktop interaktif (`WinSta0\Default`).
-9. **📱 ➔ 🖥️ Mirror Layar Android ke Windows (scrcpy Auto-Installer):**
+9. **📱 ➔ 🖥️ Mirror Layar Android ke Windows (scrcpy via USB, Wi-Fi, & Hotspot HP):**
    * Menampilkan layar HP/Tablet Android secara langsung di Windows dengan latensi sangat rendah (<35ms).
    * **Auto-Download:** Jika `scrcpy` belum terdeteksi di Windows atau ADB, sistem akan mengunduh dan mengekstrak rilis resmi secara otomatis tanpa intervensi manual.
-   * Mendukung pemilihan perangkat ADB secara dinamis (USB maupun Wi-Fi ADB).
+   * **ADB Wireless Fleksibel:** Mendukung mirroring nirkabel baik dalam **satu jaringan Wi-Fi LAN** maupun **Hotspot portabel dari HP** (menggunakan IP gateway default `192.168.43.1`).
+   * **1-Click TCP/IP Switch:** Mengalihkan koneksi kabel USB ke mode nirkabel (`adb tcpip 5555`) cukup dengan satu klik dari antarmuka host.
 
 ---
 
@@ -171,6 +172,34 @@ Terminal akan menampilkan informasi alamat IP lokal dan gambar **QR Code**.
 
 ---
 
+### 5. Mirror Layar Android ke PC (scrcpy via USB, Wi-Fi LAN, atau Hotspot HP)
+
+Buka dashboard host di PC: `http://localhost:8000/host`
+
+#### Opsi 1: Menggunakan Kabel USB
+1. Hubungkan HP/Tablet Android dengan kabel USB (aktifkan *USB Debugging* di Opsi Pengembang).
+2. Di dashboard, pilih perangkat di menu dropdown dan klik **▶ Mulai Mirroring**.
+3. Jika `scrcpy` belum terpasang di sistem, sistem akan mengunduh dan mengekstrak rilis resmi secara otomatis.
+
+#### Opsi 2: ADB Wireless (Satu Jaringan Wi-Fi)
+1. Pastikan PC dan HP terhubung ke jaringan Wi-Fi yang sama.
+2. Cek IP HP Anda (Pengaturan ➔ Tentang Ponsel ➔ Status ➔ Alamat IP).
+3. Masukkan IP dan port (default `5555`) pada panel **📶 Koneksi Nirkabel**, lalu klik **🔗 Sambungkan**.
+4. Pilih perangkat nirkabel yang muncul di daftar dan klik **▶ Mulai Mirroring**.
+
+#### Opsi 3: ADB Wireless via Mobile Hotspot dari HP (Tanpa Router Eksternal)
+1. Nyalakan **Personal Hotspot / Hotspot Portabel** di HP Android Anda.
+2. Sambungkan Wi-Fi laptop/PC Windows Anda ke hotspot HP tersebut.
+3. Di dashboard host, klik tombol **💡 Pasang IP Hotspot (192.168.43.1)** (atau gateway Wi-Fi yang terdeteksi otomatis).
+4. Klik **🔗 Sambungkan**, lalu pilih perangkat dan klik **▶ Mulai Mirroring**.
+
+#### Opsi 4: Beralih Cepat dari Kabel USB ke Nirkabel
+1. Hubungkan HP via USB satu kali.
+2. Klik tombol **🔄 Aktifkan Mode Wi-Fi dari USB (adb tcpip 5555)**.
+3. Cabut kabel USB dan sambungkan secara nirkabel menggunakan IP HP Anda.
+
+---
+
 ## 🔒 DevSecOps & Praktik Keamanan (*Security Best Practices*)
 
 Proyek ini dibangun dengan mematuhi prinsip DevSecOps:
@@ -199,7 +228,11 @@ test_app.py::test_terminal_qr_camera_decodable PASSED
 test_app.py::test_format_banner_fits_viewport PASSED
 test_app.py::test_scrcpy_manager_status_and_discovery PASSED
 test_app.py::test_api_android_endpoints PASSED
-==================== 9 passed in 2.47s ====================
+test_app.py::test_normalize_adb_target_bdd PASSED
+test_app.py::test_wifi_gateway_detection_bdd PASSED
+test_app.py::test_api_adb_wireless_endpoints_bdd PASSED
+test_app.py::test_api_adb_tcpip_endpoint_bdd PASSED
+==================== 13 passed in 2.72s ====================
 ```
 
 ---
@@ -208,7 +241,8 @@ test_app.py::test_api_android_endpoints PASSED
 
 | Versi | Status | Catatan Rilis | Tautan Unduhan |
 | :---: | :---: | :--- | :---: |
-| **v1.2.0** | **Terbaru (Latest)** | Menambahkan fitur *bidirectional mirroring* (Android ➔ PC via `scrcpy` auto-installer & device selector), endpoint `/api/android/*`, dan panel kontrol host. | [⬇️ Download v1.2.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.2.0) |
+| **v1.3.0** | **Terbaru (Latest)** | Fitur *ADB Wireless screen sharing* (Wi-Fi LAN & Mobile Hotspot HP `192.168.43.1`), deteksi auto-gateway, 1-klik TCP/IP USB switch, auto-installer scrcpy + ADB bundle, serta 13 pengujian BDD/SDD. | [⬇️ Download v1.3.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.3.0) |
+| **v1.2.0** | Stabil | Menambahkan fitur *bidirectional mirroring* (Android ➔ PC via `scrcpy` auto-installer & device selector), endpoint `/api/android/*`, dan panel kontrol host. | [⬇️ Download v1.2.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.2.0) |
 | **v1.1.0** | Stabil | Perbaikan QR Code CLI kompak (15 baris) anti-terpotong, kompatibilitas pemindaian kamera HP, serta 3 test BDD. | [⬇️ Download v1.1.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.1.0) |
 | **v1.0.0** | Awal | Rilis perdana: Screen mirroring Windows ke Samsung Tablet S7, input S-Pen dengan palm rejection, dan click deadzone filter. | [⬇️ Download v1.0.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.0.0) |
 

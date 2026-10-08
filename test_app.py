@@ -162,3 +162,80 @@ def test_api_android_endpoints():
     r_stop = client.post("/api/android/scrcpy/stop")
     assert r_stop.status_code == 200
     assert r_stop.json()["status"] == "ok"
+
+
+def test_normalize_adb_target_bdd():
+    """BDD/SDD Scenario: Normalization of ADB wireless IP and port targets.
+    Given various IP formats (plain IP, IP with port, padded strings),
+    When normalize_adb_target is executed,
+    Then target string is correctly formatted as host:port, or raises ValueError on empty.
+    """
+    import pytest
+    import scrcpy_manager
+
+    assert scrcpy_manager.normalize_adb_target("192.168.0.2") == "192.168.0.2:5555"
+    assert scrcpy_manager.normalize_adb_target("192.168.0.2", 5556) == "192.168.0.2:5556"
+    assert scrcpy_manager.normalize_adb_target("192.168.43.1:5555") == "192.168.43.1:5555"
+    assert scrcpy_manager.normalize_adb_target("  192.168.43.1:8000  ") == "192.168.43.1:8000"
+
+    with pytest.raises(ValueError):
+        scrcpy_manager.normalize_adb_target("")
+
+    with pytest.raises(ValueError):
+        scrcpy_manager.normalize_adb_target("   ")
+
+
+def test_wifi_gateway_detection_bdd():
+    """BDD/SDD Scenario: Detection of active Wi-Fi or Phone Hotspot gateway IP.
+    Given a local network environment,
+    When get_wifi_gateway_ip is called,
+    Then it returns None or a valid IPv4 string without crashing.
+    """
+    import scrcpy_manager
+
+    gw = scrcpy_manager.get_wifi_gateway_ip()
+    if gw is not None:
+        assert isinstance(gw, str)
+        assert "." in gw
+        assert len(gw.split(".")) == 4
+
+
+def test_api_adb_wireless_endpoints_bdd():
+    """BDD/SDD Scenario: ADB wireless connect, disconnect, and gateway endpoints.
+    Given FastAPI TestClient,
+    When querying /api/android/adb/gateway and posting connect/disconnect payloads,
+    Then endpoints handle inputs properly and return expected response schemas.
+    """
+    client = TestClient(app)
+
+    # Gateway endpoint
+    r_gw = client.get("/api/android/adb/gateway")
+    assert r_gw.status_code == 200
+    gw_data = r_gw.json()
+    assert "hotspot_default" in gw_data
+    assert gw_data["hotspot_default"] == "192.168.43.1"
+
+    # Connect with empty IP -> error response
+    r_empty_conn = client.post("/api/android/adb/connect", json={"ip": ""})
+    assert r_empty_conn.status_code == 200
+    assert r_empty_conn.json()["status"] == "error"
+
+    # Disconnect with empty target -> error response
+    r_empty_disc = client.post("/api/android/adb/disconnect", json={"target": ""})
+    assert r_empty_disc.status_code == 200
+    assert r_empty_disc.json()["status"] == "error"
+
+
+def test_api_adb_tcpip_endpoint_bdd():
+    """BDD/SDD Scenario: ADB TCP/IP mode activation endpoint.
+    Given FastAPI TestClient,
+    When posting to /api/android/adb/tcpip,
+    Then the endpoint responds with HTTP 200 and status key.
+    """
+    client = TestClient(app)
+    r_tcp = client.post("/api/android/adb/tcpip", json={"port": 5555})
+    assert r_tcp.status_code == 200
+    data = r_tcp.json()
+    assert "status" in data
+    assert "port" in data
+    assert data["port"] == 5555
