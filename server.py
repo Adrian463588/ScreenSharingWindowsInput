@@ -1,7 +1,6 @@
 import asyncio
 import io
 import json
-import os
 import socket
 from typing import Set
 import uvicorn
@@ -149,7 +148,7 @@ async def stream_worker():
                 await asyncio.sleep(sleep_time)
             else:
                 await asyncio.sleep(0.15)
-        except Exception as e:
+        except Exception:
             await asyncio.sleep(0.1)
 
 @app.websocket("/ws/client")
@@ -209,24 +208,64 @@ async def websocket_client_endpoint(websocket: WebSocket):
                 
     except WebSocketDisconnect:
         connected_clients.discard(websocket)
-    except Exception as e:
+    except Exception:
         connected_clients.discard(websocket)
 
+def generate_terminal_qr(data: str, border: int = 2) -> str:
+    """Generate compact, high-contrast, non-truncated ASCII QR code for terminals.
+    Uses half-block unicode characters with proper quiet zone so camera scanners
+    can reliably decode the QR code on dark or light terminals without overflowing
+    standard 24-line terminal windows.
+    """
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        border=border,
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    matrix = qr.get_matrix()
+    h = len(matrix)
+    w = len(matrix[0])
+
+    if h % 2 != 0:
+        matrix.append([False] * w)
+        h += 1
+
+    lines = []
+    for r in range(0, h, 2):
+        row_str = []
+        for c in range(w):
+            top_white = not matrix[r][c]
+            bot_white = not matrix[r + 1][c]
+            if top_white and bot_white:
+                row_str.append("█")
+            elif top_white and not bot_white:
+                row_str.append("▀")
+            elif not top_white and bot_white:
+                row_str.append("▄")
+            else:
+                row_str.append(" ")
+        lines.append("".join(row_str))
+    return "\n".join(lines)
+
+def format_banner(url: str, port: int) -> str:
+    """Format compact banner guaranteed to fit inside standard 24-line terminal viewport."""
+    qr_art = generate_terminal_qr(url, border=2)
+    lines = [
+        "=" * 56,
+        "  📱 TabSign - Screen Mirroring & S-Pen Signature Input",
+        f"  Target URL: {url}",
+        f"  Host Panel: http://localhost:{port}/host",
+        "=" * 56,
+        qr_art,
+        "  Arahkan kamera tablet / HP ke QR Code di atas",
+        "=" * 56,
+    ]
+    return "\n".join(lines)
+
 def print_banner():
-    print("=" * 60)
-    print("  📱 TabSign - Screen Mirroring & S-Pen Signature Input")
-    print("  Host: Windows PC  ⇄  Client: Samsung Galaxy Tab S7")
-    print("=" * 60)
-    print(f"\n[1] Buka di Samsung Tablet S7:")
-    print(f"    --> {server_url} <--\n")
-    print(f"[2] Dashboard Kontrol Windows Host:")
-    print(f"    --> http://localhost:{server_port}/host <--\n")
-    print("[3] Scan QR Code di bawah menggunakan Kamera Samsung Tablet S7:\n")
-    
-    qr = qrcode.QRCode()
-    qr.add_data(server_url)
-    qr.print_ascii(invert=True)
-    print("=" * 60)
+    print(format_banner(server_url, server_port))
 
 if __name__ == "__main__":
     print_banner()

@@ -1,5 +1,6 @@
 # ScreenSharingWindowsInput (TabSign)
 
+[![Version](https://img.shields.io/badge/Version-v1.1.0-brightgreen.svg)](https://github.com/Adrian463588/ScreenSharingWindowsInput)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Framework-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![WebSockets](https://img.shields.io/badge/Streaming-WebSockets%20Binary-yellow.svg)](https://websockets.readthedocs.io/)
@@ -184,7 +185,10 @@ test_app.py::test_screen_capturer_frame PASSED
 test_app.py::test_injector_coords PASSED
 test_app.py::test_injector_click_and_scroll PASSED
 test_app.py::test_api_endpoints PASSED
-==================== 4 passed in 2.53s ====================
+test_app.py::test_terminal_qr_dimensions_and_fit PASSED
+test_app.py::test_terminal_qr_camera_decodable PASSED
+test_app.py::test_format_banner_fits_viewport PASSED
+==================== 7 passed in 1.84s ====================
 ```
 
 ---
