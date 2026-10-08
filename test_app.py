@@ -122,3 +122,43 @@ def test_format_banner_fits_viewport():
     banner = format_banner("http://192.168.0.5:8000", 8000)
     lines = banner.splitlines()
     assert len(lines) <= 23, f"Banner has {len(lines)} lines, which overflows standard 24-line terminal"
+
+def test_scrcpy_manager_status_and_discovery():
+    """BDD/SDD Scenario: scrcpy detection and status reporting.
+    Given scrcpy_manager,
+    When get_scrcpy_status is called,
+    Then it returns a dictionary with installed, running, and devices keys.
+    """
+    import scrcpy_manager
+
+    status = scrcpy_manager.get_scrcpy_status()
+    assert isinstance(status, dict)
+    assert "installed" in status
+    assert "running" in status
+    assert "devices" in status
+    assert isinstance(status["devices"], list)
+
+def test_api_android_endpoints():
+    """BDD/SDD Scenario: Android mirroring REST endpoints.
+    Given FastAPI test client,
+    When calling /api/android/devices, /api/android/scrcpy/status, /api/android/scrcpy/stop,
+    Then all endpoints respond with HTTP 200 and expected schema.
+    """
+    client = TestClient(app)
+
+    # Devices endpoint
+    r_dev = client.get("/api/android/devices")
+    assert r_dev.status_code == 200
+    assert isinstance(r_dev.json(), list)
+
+    # Status endpoint
+    r_stat = client.get("/api/android/scrcpy/status")
+    assert r_stat.status_code == 200
+    data = r_stat.json()
+    assert "installed" in data
+    assert "running" in data
+
+    # Stop endpoint (safe when idle)
+    r_stop = client.post("/api/android/scrcpy/stop")
+    assert r_stop.status_code == 200
+    assert r_stop.json()["status"] == "ok"

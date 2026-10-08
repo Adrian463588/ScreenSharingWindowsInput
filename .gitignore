@@ -37,3 +37,7 @@ Desktop.ini
 *.secret
 credentials.json
 token.json
+
+# Local Binaries (scrcpy)
+bin/
+*.zip

@@ -164,6 +164,40 @@
                 </div>
             </div>
         </div>
+
+        <!-- Android to Windows Mirroring Card (scrcpy) -->
+        <div class="card" style="margin-top: 20px;">
+            <h2>📱 ➔ 🖥️ Mirror Layar Android ke Windows (scrcpy)</h2>
+            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 12px;">
+                Tampilkan layar HP/Tablet Android langsung di monitor Windows dengan kontrol mouse & keyboard latensi rendah.
+            </p>
+            <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 14px;">
+                <div>
+                    <div class="form-group">
+                        <label for="select-device">Pilih Perangkat Android (ADB):</label>
+                        <select id="select-device">
+                            <option value="">Memindai perangkat...</option>
+                        </select>
+                        <button id="btn-refresh-devices" class="btn btn-secondary btn-refresh">🔄 Pindai Ulang Perangkat</button>
+                    </div>
+                </div>
+                <div>
+                    <div class="stat-item">
+                        <span>Status scrcpy:</span>
+                        <span id="scrcpy-status-badge" class="stat-val">Memeriksa...</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>Status Mirroring:</span>
+                        <span id="scrcpy-running-badge" class="stat-val">Tidak Aktif</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; margin-top: 12px;">
+                        <button id="btn-start-scrcpy" class="btn btn-active" style="flex: 1; justify-content: center;">▶ Mulai Mirroring</button>
+                        <button id="btn-stop-scrcpy" class="btn btn-warning" style="display: none; justify-content: center;">⏹ Berhenti</button>
+                        <button id="btn-install-scrcpy" class="btn btn-secondary" style="display: none; justify-content: center;">⬇ Unduh scrcpy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -193,6 +227,99 @@
                 sel.value = currentVal;
             } catch (err) {}
         }
+
+        async function loadAndroidStatus() {
+            try {
+                const res = await fetch('/api/android/scrcpy/status');
+                const data = await res.json();
+                
+                const statusBadge = document.getElementById('scrcpy-status-badge');
+                const runningBadge = document.getElementById('scrcpy-running-badge');
+                const btnStart = document.getElementById('btn-start-scrcpy');
+                const btnStop = document.getElementById('btn-stop-scrcpy');
+                const btnInstall = document.getElementById('btn-install-scrcpy');
+
+                if (data.installed) {
+                    statusBadge.textContent = '🟢 Siap / Terpasang';
+                    statusBadge.style.color = '#34d399';
+                    btnInstall.style.display = 'none';
+                } else {
+                    statusBadge.textContent = '🟡 Belum Diunduh';
+                    statusBadge.style.color = '#fbbf24';
+                    btnInstall.style.display = 'inline-flex';
+                }
+
+                if (data.running) {
+                    runningBadge.textContent = `🟢 Aktif (${data.active_serial || 'Device'})`;
+                    runningBadge.style.color = '#34d399';
+                    btnStart.style.display = 'none';
+                    btnStop.style.display = 'inline-flex';
+                } else {
+                    runningBadge.textContent = '⚪ Tidak Aktif';
+                    runningBadge.style.color = '#94a3b8';
+                    btnStart.style.display = 'inline-flex';
+                    btnStop.style.display = 'none';
+                }
+
+                const sel = document.getElementById('select-device');
+                const cur = sel.value;
+                sel.innerHTML = '';
+                if (data.devices && data.devices.length > 0) {
+                    data.devices.forEach(d => {
+                        const opt = document.createElement('option');
+                        opt.value = d.serial;
+                        opt.textContent = `📱 ${d.model || d.serial} (${d.serial})`;
+                        sel.appendChild(opt);
+                    });
+                    if (cur) sel.value = cur;
+                } else {
+                    sel.innerHTML = '<option value="">⚠️ Tidak ada perangkat ADB terdeteksi</option>';
+                }
+            } catch (err) {}
+        }
+
+        document.getElementById('btn-refresh-devices').addEventListener('click', loadAndroidStatus);
+
+        document.getElementById('btn-install-scrcpy').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-install-scrcpy');
+            btn.textContent = '⏳ Mengunduh...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/android/scrcpy/install', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    alert('scrcpy berhasil diunduh dan dipasang!');
+                } else {
+                    alert('Gagal mengunduh: ' + data.message);
+                }
+            } catch (err) {
+                alert('Galat: ' + err);
+            } finally {
+                btn.textContent = '⬇ Unduh scrcpy';
+                btn.disabled = false;
+                loadAndroidStatus();
+            }
+        });
+
+        document.getElementById('btn-start-scrcpy').addEventListener('click', async () => {
+            const sel = document.getElementById('select-device');
+            const serial = sel.value;
+            const res = await fetch('/api/android/scrcpy/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ serial: serial })
+            });
+            const data = await res.json();
+            if (data.status === 'error') {
+                alert('Gagal menjalankan mirroring: ' + data.message);
+            }
+            loadAndroidStatus();
+        });
+
+        document.getElementById('btn-stop-scrcpy').addEventListener('click', async () => {
+            await fetch('/api/android/scrcpy/stop', { method: 'POST' });
+            loadAndroidStatus();
+        });
 
         document.getElementById('select-window').addEventListener('change', async (e) => {
             const hwnd = parseInt(e.target.value);
@@ -228,7 +355,9 @@
 
         loadStatus();
         loadWindows();
+        loadAndroidStatus();
         setInterval(loadStatus, 2000);
+        setInterval(loadAndroidStatus, 3000);
     </script>
 </body>
 </html>

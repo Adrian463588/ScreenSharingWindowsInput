@@ -2,7 +2,7 @@ import asyncio
 import io
 import json
 import socket
-from typing import Set
+from typing import Set, Optional
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Response
 from fastapi.responses import FileResponse
@@ -12,6 +12,7 @@ import psutil
 
 from capture import ScreenCapturer, attach_to_default_desktop
 from injector import InputInjector
+import scrcpy_manager
 
 from contextlib import asynccontextmanager
 
@@ -119,6 +120,46 @@ async def get_qrcode():
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return Response(content=buf.getvalue(), media_type="image/png")
+
+@app.get("/api/android/devices")
+async def get_android_devices():
+    return scrcpy_manager.get_adb_devices()
+
+@app.get("/api/android/scrcpy/status")
+async def get_android_scrcpy_status():
+    return scrcpy_manager.get_scrcpy_status()
+
+@app.post("/api/android/scrcpy/install")
+async def install_android_scrcpy():
+    try:
+        path = await asyncio.to_thread(scrcpy_manager.ensure_scrcpy)
+        return {"status": "ok", "path": path}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+@app.post("/api/android/scrcpy/start")
+async def start_android_scrcpy(payload: Optional[dict] = None):
+    payload = payload or {}
+    serial = payload.get("serial")
+    stay_awake = payload.get("stay_awake", True)
+    turn_screen_off = payload.get("turn_screen_off", False)
+    max_size = payload.get("max_size")
+    try:
+        await asyncio.to_thread(
+            scrcpy_manager.launch_scrcpy,
+            serial=serial,
+            stay_awake=stay_awake,
+            turn_screen_off=turn_screen_off,
+            max_size=max_size,
+        )
+        return {"status": "ok", "running": True, "serial": serial}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+@app.post("/api/android/scrcpy/stop")
+async def stop_android_scrcpy():
+    stopped = scrcpy_manager.stop_scrcpy()
+    return {"status": "ok", "stopped": stopped}
 
 # Background Screen Streaming Worker
 async def stream_worker():

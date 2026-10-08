@@ -1,25 +1,30 @@
 # ScreenSharingWindowsInput (TabSign)
 
-[![Version](https://img.shields.io/badge/Version-v1.1.0-brightgreen.svg)](https://github.com/Adrian463588/ScreenSharingWindowsInput)
+[![Version](https://img.shields.io/badge/Version-v1.2.0-brightgreen.svg)](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.2.0)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Framework-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![WebSockets](https://img.shields.io/badge/Streaming-WebSockets%20Binary-yellow.svg)](https://websockets.readthedocs.io/)
+[![scrcpy](https://img.shields.io/badge/Mirroring-scrcpy%20v5.0-orange.svg)](https://github.com/Genymobile/scrcpy)
 [![Win32 API](https://img.shields.io/badge/Input-Win32%20SendInput-informational.svg)](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)
 [![DevSecOps](https://img.shields.io/badge/Security-DevSecOps%20Compliant-success.svg)](#devsecops--keamanan)
 
-Aplikasi *screen sharing* dan *input mirroring* berlatensi sangat rendah dari PC Windows ke perangkat tablet (seperti Samsung Galaxy Tab S7 dengan S-Pen) secara *real-time*.
+Aplikasi *bidirectional screen sharing* dan *input mirroring* berlatensi sangat rendah antara PC Windows dan perangkat Android (HP & Tablet seperti Samsung Galaxy Tab S7 dengan S-Pen) secara *real-time*.
 
-Dirancang khusus untuk memudahkan pengguna menandatangani dokumen berbasis website (seperti DocuSign, Privy, Adobe Sign, form web, atau PDF viewer) yang dibuka di Windows langsung menggunakan stylus S-Pen pada tablet.
+Dirancang khusus untuk dua mode utama:
+1. **Windows ➔ Tablet:** Menandatangani dokumen web (DocuSign, Privy, Adobe Sign, form web, PDF) langsung menggunakan stylus S-Pen pada tablet.
+2. **Android ➔ Windows:** Menampilkan layar HP/Tablet Android secara langsung di Windows dengan kontrol mouse & keyboard latensi rendah via engine `scrcpy` otomatis.
 
 ---
 
 ## 📌 Ringkasan Masalah & Solusi (*Overview*)
 
 ### Masalah
-Saat membuka dokumen resmi yang membutuhkan tanda tangan digital di peramban PC (Google Chrome, Microsoft Edge, dll.), menandatangani menggunakan mouse seringkali kaku, tidak rapi, dan tidak menyerupai tanda tangan asli.
+Saat membuka dokumen resmi yang membutuhkan tanda tangan digital di peramban PC (Google Chrome, Microsoft Edge, dll.), menandatangani menggunakan mouse seringkali kaku dan tidak rapi. Sebaliknya, saat presentasi atau pengujian aplikasi mobile, pengguna sering membutuhkan tampilan layar HP Android langsung di layar besar Windows dengan performa 60 FPS tanpa konfigurasi rumit.
 
 ### Solusi
-**ScreenSharingWindowsInput** mentransmisikan tampilan layar Windows (seluruh desktop atau jendela web tertentu) ke tablet Android melalui browser secara instan. Input stylus (S-Pen) dan sentuhan jari dari tablet diterjemahkan dan diinjeksikan secara presisi ke Windows menggunakan API resmi `SendInput`, menghadirkan pengalaman menggambar tanda tangan alami layaknya *drawing tablet* profesional.
+**ScreenSharingWindowsInput** menyediakan solusi dua arah (*bidirectional*):
+* **Mode Tanda Tangan:** Mentransmisikan layar Windows ke tablet Android via browser secara instan. Input S-Pen dan jari diterjemahkan dengan API resmi `SendInput`.
+* **Mode Mirroring Android:** Mengintegrasikan engine `scrcpy` dengan deteksi otomatis. Jika sistem atau lingkungan ADB belum memiliki `scrcpy`, sistem akan **mengunduh dan memasangnya secara otomatis**.
 
 ---
 
@@ -44,6 +49,10 @@ Saat membuka dokumen resmi yang membutuhkan tanda tangan digital di peramban PC 
    * Dashboard kontrol lokal di PC (`http://localhost:8000/host`) untuk memilih target jendela (misal: Google Chrome), mengatur FPS (15–60 FPS), dan mengatur kualitas kompresi JPEG.
 8. **Injeksi Input Tingkat Kernel Windows:**
    * Menggunakan Win32 API `SendInput` resmi dengan koordinat absolut ternormalisasi ($0 - 65535$) dan pengikatan stasiun desktop interaktif (`WinSta0\Default`).
+9. **📱 ➔ 🖥️ Mirror Layar Android ke Windows (scrcpy Auto-Installer):**
+   * Menampilkan layar HP/Tablet Android secara langsung di Windows dengan latensi sangat rendah (<35ms).
+   * **Auto-Download:** Jika `scrcpy` belum terdeteksi di Windows atau ADB, sistem akan mengunduh dan mengekstrak rilis resmi secara otomatis tanpa intervensi manual.
+   * Mendukung pemilihan perangkat ADB secara dinamis (USB maupun Wi-Fi ADB).
 
 ---
 
@@ -174,7 +183,7 @@ Proyek ini dibangun dengan mematuhi prinsip DevSecOps:
 
 ## 🧪 Menjalankan Pengujian (*Unit Tests*)
 
-Untuk memverifikasi keandalan sistem penangkapan layar, injeksi input, dan endpoint API:
+Untuk memverifikasi keandalan sistem penangkapan layar, injeksi input, engine scrcpy, dan endpoint API:
 ```bash
 pytest test_app.py -v
 ```
@@ -188,8 +197,20 @@ test_app.py::test_api_endpoints PASSED
 test_app.py::test_terminal_qr_dimensions_and_fit PASSED
 test_app.py::test_terminal_qr_camera_decodable PASSED
 test_app.py::test_format_banner_fits_viewport PASSED
-==================== 7 passed in 1.84s ====================
+test_app.py::test_scrcpy_manager_status_and_discovery PASSED
+test_app.py::test_api_android_endpoints PASSED
+==================== 9 passed in 2.47s ====================
 ```
+
+---
+
+## 📦 Riwayat Versi & Tautan Unduhan (*Version History & Downloads*)
+
+| Versi | Status | Catatan Rilis | Tautan Unduhan |
+| :---: | :---: | :--- | :---: |
+| **v1.2.0** | **Terbaru (Latest)** | Menambahkan fitur *bidirectional mirroring* (Android ➔ PC via `scrcpy` auto-installer & device selector), endpoint `/api/android/*`, dan panel kontrol host. | [⬇️ Download v1.2.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.2.0) |
+| **v1.1.0** | Stabil | Perbaikan QR Code CLI kompak (15 baris) anti-terpotong, kompatibilitas pemindaian kamera HP, serta 3 test BDD. | [⬇️ Download v1.1.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.1.0) |
+| **v1.0.0** | Awal | Rilis perdana: Screen mirroring Windows ke Samsung Tablet S7, input S-Pen dengan palm rejection, dan click deadzone filter. | [⬇️ Download v1.0.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.0.0) |
 
 ---
 
