@@ -307,10 +307,14 @@
                     data.devices.forEach(d => {
                         const opt = document.createElement('option');
                         opt.value = d.serial;
-                        opt.textContent = `📱 ${d.model || d.serial} (${d.serial})`;
+                        const isWireless = d.serial.includes(':');
+                        const prefix = isWireless ? '📶 [Nirkabel]' : '🔌 [Kabel USB]';
+                        opt.textContent = `${prefix} ${d.model || d.serial} (${d.serial})`;
                         sel.appendChild(opt);
                     });
-                    if (cur) sel.value = cur;
+                    if (cur && Array.from(sel.options).some(o => o.value === cur)) {
+                        sel.value = cur;
+                    }
                 } else {
                     if (devBadge) {
                         devBadge.textContent = '🔴 0 Terdeteksi';

@@ -293,3 +293,51 @@ def test_api_devices_scan_bdd():
     r = client.get("/api/android/devices/scan")
     assert r.status_code == 200
     assert isinstance(r.json(), list)
+
+
+def test_remembered_wireless_hosts_bdd():
+    """BDD/SDD Scenario: Persistent management of remembered wireless ADB targets.
+    Given scrcpy_manager,
+    When saving and removing a target host,
+    Then the target is recorded and cleared correctly.
+    """
+    import scrcpy_manager
+
+    target = "192.168.0.99:5555"
+    scrcpy_manager.save_remembered_host(target)
+    hosts = scrcpy_manager.load_remembered_hosts()
+    assert target in hosts
+
+    scrcpy_manager.remove_remembered_host(target)
+    hosts_after = scrcpy_manager.load_remembered_hosts()
+    assert target not in hosts_after
+
+
+def test_find_open_adb_hosts_bdd():
+    """BDD/SDD Scenario: Probing candidate hosts for open ADB port 5555.
+    Given local network and candidate hosts,
+    When find_open_adb_hosts is executed,
+    Then it returns a list of reachable host strings without errors.
+    """
+    import scrcpy_manager
+
+    hosts = scrcpy_manager.find_open_adb_hosts()
+    assert isinstance(hosts, list)
+    for h in hosts:
+        assert ":" in h
+
+
+def test_anti_cache_headers_bdd():
+    """BDD/SDD Scenario: Browser anti-cache headers on HTML endpoints.
+    Given FastAPI TestClient,
+    When requesting GET / and GET /host,
+    Then response headers include Cache-Control no-cache and no-store.
+    """
+    client = TestClient(app)
+    r_index = client.get("/")
+    assert "no-cache" in r_index.headers.get("cache-control", "")
+    assert "no-store" in r_index.headers.get("cache-control", "")
+
+    r_host = client.get("/host")
+    assert "no-cache" in r_host.headers.get("cache-control", "")
+    assert "no-store" in r_host.headers.get("cache-control", "")

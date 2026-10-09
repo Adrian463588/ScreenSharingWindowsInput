@@ -38,6 +38,7 @@ Desktop.ini
 credentials.json
 token.json
 
-# Local Binaries (scrcpy)
+# Local Binaries & Runtime Config
 bin/
 *.zip
+config_wireless.json

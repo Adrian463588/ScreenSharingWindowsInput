@@ -71,13 +71,19 @@ server_url = f"http://{local_ip}:{server_port}"
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+NO_CACHE_HEADERS = {
+    "Cache-Control": "no-cache, no-store, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
 @app.get("/")
 async def get_index():
-    return FileResponse("static/index.html")
+    return FileResponse("static/index.html", headers=NO_CACHE_HEADERS)
 
 @app.get("/host")
 async def get_host_page():
-    return FileResponse("static/host.html")
+    return FileResponse("static/host.html", headers=NO_CACHE_HEADERS)
 
 @app.get("/api/status")
 async def get_status():

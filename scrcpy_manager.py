@@ -1,6 +1,8 @@
 import json
 import os
+import re
 import shutil
+import socket
 import subprocess
 import urllib.request
 import zipfile
@@ -11,6 +13,7 @@ SCRCPY_DEFAULT_URL = (
     "https://github.com/Genymobile/scrcpy/releases/download/v3.1/scrcpy-win64-v3.1.zip"
 )
 BIN_DIR = Path(__file__).parent / "bin" / "scrcpy"
+CONFIG_WIRELESS_PATH = Path(__file__).parent / "config_wireless.json"
 
 # Global reference to running scrcpy process
 _active_process: Optional[subprocess.Popen] = None
@@ -183,29 +186,112 @@ def get_adb_devices(timeout: int = 10) -> List[Dict[str, str]]:
         return []
 
 
-def auto_detect_devices() -> List[Dict[str, str]]:
-    """Automatically detect ADB devices.
-    Checks USB devices first; if none found, attempts auto-connection to Wi-Fi/Hotspot gateway.
-    """
-    devices = get_adb_devices()
-    if devices:
-        return devices
-
-    gw = get_wifi_gateway_ip() or "192.168.43.1"
-    target = f"{gw}:5555"
-    adb_bin = find_adb()
-    if adb_bin:
+def load_remembered_hosts() -> List[str]:
+    """Load previously connected wireless ADB hosts."""
+    if CONFIG_WIRELESS_PATH.exists():
         try:
-            subprocess.run(
-                [adb_bin, "connect", target],
-                capture_output=True,
-                text=True,
-                timeout=3,
-                check=False,
-            )
-            devices = get_adb_devices()
+            data = json.loads(CONFIG_WIRELESS_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                return [str(h) for h in data if h]
         except Exception:
             pass
+    return ["192.168.43.1:5555", "192.168.0.2:5555"]
+
+
+def save_remembered_host(target: str) -> None:
+    """Save newly connected wireless ADB host for future auto-discovery."""
+    hosts = load_remembered_hosts()
+    if target not in hosts:
+        hosts.append(target)
+        try:
+            CONFIG_WIRELESS_PATH.write_text(json.dumps(hosts, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+
+def remove_remembered_host(target: str) -> None:
+    """Remove a wireless ADB host from remembered list."""
+    hosts = load_remembered_hosts()
+    if target in hosts:
+        hosts = [h for h in hosts if h != target]
+        try:
+            CONFIG_WIRELESS_PATH.write_text(json.dumps(hosts, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+
+def find_open_adb_hosts() -> List[str]:
+    """Fast probe of candidate wireless IPs (remembered, hotspot, and ARP table) on port 5555."""
+    candidates = set(load_remembered_hosts())
+
+    gw = get_wifi_gateway_ip()
+    if gw:
+        candidates.add(f"{gw}:5555")
+    candidates.add("192.168.43.1:5555")
+
+    try:
+        res = subprocess.run(
+            ["arp", "-a"], capture_output=True, text=True, timeout=2, check=False
+        )
+        found_ips = re.findall(r"(?:192\.168|10\.\d+|172\.\d+)\.\d+\.\d+", res.stdout)
+        for ip in found_ips:
+            if not ip.endswith(".255") and not ip.endswith(".1"):
+                candidates.add(f"{ip}:5555")
+    except Exception:
+        pass
+
+    open_hosts = []
+    for cand in candidates:
+        if ":" in cand:
+            host, p_str = cand.rsplit(":", 1)
+            try:
+                port = int(p_str)
+            except ValueError:
+                port = 5555
+        else:
+            host, port = cand, 5555
+
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.2)
+            if s.connect_ex((host, port)) == 0:
+                open_hosts.append(f"{host}:{port}")
+            s.close()
+        except Exception:
+            pass
+
+    return open_hosts
+
+
+def auto_detect_devices() -> List[Dict[str, str]]:
+    """Automatically detect all connected USB and Wireless ADB devices.
+    Discovers and connects to open ADB Wireless endpoints on LAN & Mobile Hotspot.
+    """
+    devices = get_adb_devices()
+    adb_bin = find_adb()
+    if not adb_bin:
+        return devices
+
+    connected_serials = {d["serial"] for d in devices}
+    open_hosts = find_open_adb_hosts()
+
+    new_connection = False
+    for target in open_hosts:
+        if target not in connected_serials:
+            try:
+                subprocess.run(
+                    [adb_bin, "connect", target],
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
+                    check=False,
+                )
+                new_connection = True
+            except Exception:
+                pass
+
+    if new_connection:
+        devices = get_adb_devices()
 
     return devices
 
@@ -335,18 +421,20 @@ def connect_adb_wireless(ip: str, port: int = 5555) -> Dict[str, Any]:
         out = (res.stdout + " " + res.stderr).strip()
         lower = out.lower()
         success = "connected" in lower and "cannot" not in lower and "failed" not in lower
+        if success:
+            save_remembered_host(target)
         return {
             "status": "ok" if success else "error",
             "target": target,
             "message": out,
-            "devices": get_adb_devices(),
+            "devices": auto_detect_devices(),
         }
     except Exception as exc:
         return {
             "status": "error",
             "target": target,
             "message": str(exc),
-            "devices": get_adb_devices(),
+            "devices": auto_detect_devices(),
         }
 
 
@@ -355,6 +443,7 @@ def disconnect_adb_wireless(target: str) -> Dict[str, Any]:
     target = target.strip()
     if not target:
         raise ValueError("Target perangkat tidak boleh kosong")
+    remove_remembered_host(target)
     adb_bin = find_adb()
     if not adb_bin:
         return {"status": "error", "message": "ADB tidak ditemukan", "devices": []}
@@ -372,14 +461,14 @@ def disconnect_adb_wireless(target: str) -> Dict[str, Any]:
             "status": "ok",
             "target": target,
             "message": out,
-            "devices": get_adb_devices(),
+            "devices": auto_detect_devices(),
         }
     except Exception as exc:
         return {
             "status": "error",
             "target": target,
             "message": str(exc),
-            "devices": get_adb_devices(),
+            "devices": auto_detect_devices(),
         }
 
 
