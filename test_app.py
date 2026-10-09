@@ -239,3 +239,57 @@ def test_api_adb_tcpip_endpoint_bdd():
     assert "status" in data
     assert "port" in data
     assert data["port"] == 5555
+
+
+def test_parse_adb_devices_output_bdd():
+    """BDD/SDD Scenario: Robust parsing of ADB devices output with daemon notices and headers.
+    Given raw ADB stdout containing daemon startup notices, headers, and device rows,
+    When parse_adb_devices_output is executed,
+    Then only actual devices are returned with properly parsed serial, state, and model.
+    """
+    import scrcpy_manager
+
+    raw_output = """* daemon not running; starting now at tcp:5037
+* daemon started successfully
+List of devices attached
+RR2N800H9DR            device product:gts7xlxx model:SM_T975 device:gts7xl transport_id:1
+192.168.0.2:5555       device product:rodin_global model:2412DPC0AG device:rodin transport_id:2
+"""
+    devices = scrcpy_manager.parse_adb_devices_output(raw_output)
+    assert len(devices) == 2
+    assert devices[0]["serial"] == "RR2N800H9DR"
+    assert devices[0]["model"] == "SM_T975"
+    assert devices[0]["state"] == "device"
+    assert devices[1]["serial"] == "192.168.0.2:5555"
+    assert devices[1]["model"] == "2412DPC0AG"
+
+    # Empty output
+    assert scrcpy_manager.parse_adb_devices_output("") == []
+    assert scrcpy_manager.parse_adb_devices_output("List of devices attached\n") == []
+
+
+def test_auto_detect_devices_bdd():
+    """BDD/SDD Scenario: Automatic detection of connected Android devices.
+    Given scrcpy_manager,
+    When auto_detect_devices is called,
+    Then it returns a list of dictionaries without raising exceptions.
+    """
+    import scrcpy_manager
+
+    devs = scrcpy_manager.auto_detect_devices()
+    assert isinstance(devs, list)
+    for d in devs:
+        assert "serial" in d
+        assert "state" in d
+
+
+def test_api_devices_scan_bdd():
+    """BDD/SDD Scenario: Dedicated device scan endpoint /api/android/devices/scan.
+    Given FastAPI TestClient,
+    When calling GET /api/android/devices/scan,
+    Then response is HTTP 200 and returns a list.
+    """
+    client = TestClient(app)
+    r = client.get("/api/android/devices/scan")
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)

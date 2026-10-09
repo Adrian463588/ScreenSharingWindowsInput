@@ -114,29 +114,31 @@ def ensure_scrcpy(url: Optional[str] = None) -> str:
     return installed
 
 
-def get_adb_devices() -> List[Dict[str, str]]:
-    """List connected Android devices via adb."""
-    adb_bin = find_adb()
-    if not adb_bin:
+def parse_adb_devices_output(output: str) -> List[Dict[str, str]]:
+    """Parse output of 'adb devices -l' into structured device records."""
+    if not output:
         return []
 
-    try:
-        res = subprocess.run(
-            [adb_bin, "devices", "-l"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-        devices = []
-        for line in res.stdout.splitlines()[1:]:
-            line = line.strip()
-            if not line:
-                continue
-            parts = line.split()
-            if len(parts) >= 2:
-                serial = parts[0]
-                state = parts[1]
+    lines = output.splitlines()
+    header_idx = -1
+    for i, line in enumerate(lines):
+        if "List of devices attached" in line:
+            header_idx = i
+            break
+
+    candidate_lines = lines[header_idx + 1:] if header_idx != -1 else lines
+    devices = []
+    valid_states = {"device", "unauthorized", "offline", "recovery", "bootloader", "authorizing"}
+
+    for line in candidate_lines:
+        line = line.strip()
+        if not line or line.startswith("*") or line.startswith("adb"):
+            continue
+        parts = line.split()
+        if len(parts) >= 2:
+            serial = parts[0]
+            state = parts[1]
+            if state in valid_states:
                 model = ""
                 product = ""
                 for p in parts[2:]:
@@ -150,9 +152,62 @@ def get_adb_devices() -> List[Dict[str, str]]:
                     "model": model or serial,
                     "product": product,
                 })
-        return devices
+    return devices
+
+
+def get_adb_devices(timeout: int = 10) -> List[Dict[str, str]]:
+    """List connected Android devices via adb with retry on daemon startup."""
+    adb_bin = find_adb()
+    if not adb_bin:
+        return []
+
+    try:
+        res = subprocess.run(
+            [adb_bin, "devices", "-l"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        combined = res.stdout + "\n" + res.stderr
+        if "daemon started successfully" in combined and not res.stdout.strip():
+            res = subprocess.run(
+                [adb_bin, "devices", "-l"],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        return parse_adb_devices_output(res.stdout)
     except Exception:
         return []
+
+
+def auto_detect_devices() -> List[Dict[str, str]]:
+    """Automatically detect ADB devices.
+    Checks USB devices first; if none found, attempts auto-connection to Wi-Fi/Hotspot gateway.
+    """
+    devices = get_adb_devices()
+    if devices:
+        return devices
+
+    gw = get_wifi_gateway_ip() or "192.168.43.1"
+    target = f"{gw}:5555"
+    adb_bin = find_adb()
+    if adb_bin:
+        try:
+            subprocess.run(
+                [adb_bin, "connect", target],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                check=False,
+            )
+            devices = get_adb_devices()
+        except Exception:
+            pass
+
+    return devices
 
 
 def is_scrcpy_running() -> bool:
@@ -198,12 +253,19 @@ def launch_scrcpy(
     # Add window title
     cmd.extend(["--window-title", f"TabSign Android Mirror: {target_serial or 'Device'}"])
 
+    # Provide consistent ADB executable path to avoid version mismatch
+    env = os.environ.copy()
+    adb_bin = find_adb()
+    if adb_bin:
+        env["ADB"] = adb_bin
+
     # Launch subprocess
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=os.path.dirname(scrcpy_bin),
+        env=env,
     )
     _active_process = proc
     _active_serial = target_serial
@@ -237,7 +299,7 @@ def get_scrcpy_status() -> Dict[str, Any]:
         "running": running,
         "active_serial": _active_serial if running else None,
         "pid": _active_process.pid if running and _active_process else None,
-        "devices": get_adb_devices(),
+        "devices": auto_detect_devices(),
         "wifi_gateway": get_wifi_gateway_ip(),
     }
 

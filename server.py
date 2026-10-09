@@ -19,6 +19,9 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     worker_task = asyncio.create_task(stream_worker())
+    # Background auto-download of scrcpy if missing on Windows
+    if not scrcpy_manager.find_scrcpy():
+        asyncio.create_task(asyncio.to_thread(scrcpy_manager.ensure_scrcpy))
     yield
     worker_task.cancel()
 
@@ -123,11 +126,15 @@ async def get_qrcode():
 
 @app.get("/api/android/devices")
 async def get_android_devices():
-    return scrcpy_manager.get_adb_devices()
+    return await asyncio.to_thread(scrcpy_manager.auto_detect_devices)
+
+@app.get("/api/android/devices/scan")
+async def scan_android_devices():
+    return await asyncio.to_thread(scrcpy_manager.auto_detect_devices)
 
 @app.get("/api/android/scrcpy/status")
 async def get_android_scrcpy_status():
-    return scrcpy_manager.get_scrcpy_status()
+    return await asyncio.to_thread(scrcpy_manager.get_scrcpy_status)
 
 @app.post("/api/android/scrcpy/install")
 async def install_android_scrcpy():

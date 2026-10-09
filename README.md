@@ -1,6 +1,6 @@
 # ScreenSharingWindowsInput (TabSign)
 
-[![Version](https://img.shields.io/badge/Version-v1.3.0-brightgreen.svg)](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.3.0)
+[![Version](https://img.shields.io/badge/Version-v1.4.0-brightgreen.svg)](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.4.0)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Framework-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![WebSockets](https://img.shields.io/badge/Streaming-WebSockets%20Binary-yellow.svg)](https://websockets.readthedocs.io/)
@@ -232,7 +232,10 @@ test_app.py::test_normalize_adb_target_bdd PASSED
 test_app.py::test_wifi_gateway_detection_bdd PASSED
 test_app.py::test_api_adb_wireless_endpoints_bdd PASSED
 test_app.py::test_api_adb_tcpip_endpoint_bdd PASSED
-==================== 13 passed in 2.72s ====================
+test_app.py::test_parse_adb_devices_output_bdd PASSED
+test_app.py::test_auto_detect_devices_bdd PASSED
+test_app.py::test_api_devices_scan_bdd PASSED
+==================== 16 passed in 9.83s ====================
 ```
 
 ---
@@ -241,7 +244,8 @@ test_app.py::test_api_adb_tcpip_endpoint_bdd PASSED
 
 | Versi | Status | Catatan Rilis | Tautan Unduhan |
 | :---: | :---: | :--- | :---: |
-| **v1.3.0** | **Terbaru (Latest)** | Fitur *ADB Wireless screen sharing* (Wi-Fi LAN & Mobile Hotspot HP `192.168.43.1`), deteksi auto-gateway, 1-klik TCP/IP USB switch, auto-installer scrcpy + ADB bundle, serta 13 pengujian BDD/SDD. | [⬇️ Download v1.3.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.3.0) |
+| **v1.4.0** | **Terbaru (Latest)** | Perbaikan auto-detect ADB device (robust parser `parse_adb_devices_output`, retry daemon startup, fallback auto-probe gateway), auto-download scrcpy di background, badge status perangkat ADB, endpoint `/api/android/devices/scan`, serta 16 pengujian BDD/SDD. | [⬇️ Download v1.4.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.4.0) |
+| **v1.3.0** | Stabil | Fitur *ADB Wireless screen sharing* (Wi-Fi LAN & Mobile Hotspot HP `192.168.43.1`), deteksi auto-gateway, 1-klik TCP/IP USB switch, auto-installer scrcpy + ADB bundle, serta 13 pengujian BDD/SDD. | [⬇️ Download v1.3.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.3.0) |
 | **v1.2.0** | Stabil | Menambahkan fitur *bidirectional mirroring* (Android ➔ PC via `scrcpy` auto-installer & device selector), endpoint `/api/android/*`, dan panel kontrol host. | [⬇️ Download v1.2.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.2.0) |
 | **v1.1.0** | Stabil | Perbaikan QR Code CLI kompak (15 baris) anti-terpotong, kompatibilitas pemindaian kamera HP, serta 3 test BDD. | [⬇️ Download v1.1.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.1.0) |
 | **v1.0.0** | Awal | Rilis perdana: Screen mirroring Windows ke Samsung Tablet S7, input S-Pen dengan palm rejection, dan click deadzone filter. | [⬇️ Download v1.0.0](https://github.com/Adrian463588/ScreenSharingWindowsInput/releases/tag/v1.0.0) |

@@ -187,6 +187,10 @@
                         <span id="scrcpy-status-badge" class="stat-val">Memeriksa...</span>
                     </div>
                     <div class="stat-item">
+                        <span>Perangkat ADB:</span>
+                        <span id="adb-devices-badge" class="stat-val">Memindai...</span>
+                    </div>
+                    <div class="stat-item">
                         <span>Status Mirroring:</span>
                         <span id="scrcpy-running-badge" class="stat-val">Tidak Aktif</span>
                     </div>
@@ -291,9 +295,15 @@
                 }
 
                 const sel = document.getElementById('select-device');
+                const devBadge = document.getElementById('adb-devices-badge');
                 const cur = sel.value;
                 sel.innerHTML = '';
                 if (data.devices && data.devices.length > 0) {
+                    const first = data.devices[0];
+                    if (devBadge) {
+                        devBadge.textContent = `🟢 ${data.devices.length} Terdeteksi (${first.model || first.serial})`;
+                        devBadge.style.color = '#34d399';
+                    }
                     data.devices.forEach(d => {
                         const opt = document.createElement('option');
                         opt.value = d.serial;
@@ -302,12 +312,35 @@
                     });
                     if (cur) sel.value = cur;
                 } else {
+                    if (devBadge) {
+                        devBadge.textContent = '🔴 0 Terdeteksi';
+                        devBadge.style.color = '#f87171';
+                    }
                     sel.innerHTML = '<option value="">⚠️ Tidak ada perangkat ADB terdeteksi</option>';
                 }
             } catch (err) {}
         }
 
-        document.getElementById('btn-refresh-devices').addEventListener('click', loadAndroidStatus);
+        document.getElementById('btn-refresh-devices').addEventListener('click', async () => {
+            const btn = document.getElementById('btn-refresh-devices');
+            btn.textContent = '⏳ Memindai...';
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/android/devices/scan');
+                const devs = await res.json();
+                loadAndroidStatus();
+                if (devs && devs.length > 0) {
+                    alert(`Ditemukan ${devs.length} perangkat ADB:\n` + devs.map(d => `• ${d.model || d.serial} (${d.serial})`).join('\n'));
+                } else {
+                    alert('Tidak ada perangkat ADB terdeteksi.\nPastikan USB Debugging aktif atau hubungkan via panel ADB Wireless.');
+                }
+            } catch (err) {
+                alert('Galat pemindaian: ' + err);
+            } finally {
+                btn.textContent = '🔄 Pindai Ulang Perangkat';
+                btn.disabled = false;
+            }
+        });
 
         document.getElementById('btn-install-scrcpy').addEventListener('click', async () => {
             const btn = document.getElementById('btn-install-scrcpy');
